@@ -11,11 +11,21 @@ struct agent {
   float angle;
 };
 
+
 const int WIDTH = 1920;
 const int HEIGHT = 1080;
-const int NUM_AGENTS = 10'000;
+
+const int NUM_AGENTS = 100000;
 const int RADIUS = 256;
-const float decayAmount = 0.01;
+
+const float decayAmount = 0.011;
+const float blurAmount = 0.5;
+const int senseRadius = 3;
+const float senseOffset = 10.60;
+const float senseAngle = 0.33;
+const float agentSpeed = 1.31;
+const float agentRotateFactor = 14.0;
+const float agentDepositAmount = 0.113;
 
 GLuint createComputeShader(const char *filename);
 GLuint createProgram(GLuint computeShader);
@@ -54,7 +64,7 @@ int main() {
     float t = ((float)rand()) / INT_MAX * 2 * M_PI;
     agents[i].position = glm::vec2((float)WIDTH / 2 + r * cos(t),
                                    (float)HEIGHT / 2 + r * sin(t));
-    agents[i].angle = -t;
+    agents[i].angle = -t*atan((float)HEIGHT/(float)WIDTH);
   }
 
   GLuint agentBuffer;
@@ -72,14 +82,27 @@ int main() {
   GLuint decayComputeShader = createComputeShader("shaders/decay_compute_shader.glsl");
   GLuint decayProgram = createProgram(decayComputeShader);
 
-  // Dispatch compute shader
+  
   glUseProgram(agentProgram);
   glBindImageTexture(1, outputImage, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
   glUniform1i(glGetUniformLocation(agentProgram, "num_agents"), NUM_AGENTS);
+  glUniform1i(glGetUniformLocation(agentProgram, "senseRadius"), senseRadius);
+  glUniform1f(glGetUniformLocation(agentProgram, "senseOffset"), senseOffset);
+  glUniform1f(glGetUniformLocation(agentProgram, "senseAngle"), senseAngle);
+  glUniform1f(glGetUniformLocation(agentProgram, "agentSpeed"), agentSpeed);
+  glUniform1f(glGetUniformLocation(agentProgram, "agentRotateFactor"), agentRotateFactor);
+  glUniform1f(glGetUniformLocation(agentProgram, "agentDepositAmount"), agentDepositAmount);
   glDispatchCompute((NUM_AGENTS + 255) / 256, 1, 1);
   glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-  // Load shaders for displaying the texture
+
+  glUseProgram(decayProgram);
+  glUniform1f(glGetUniformLocation(decayProgram, "decayAmount"), decayAmount);
+  glUniform1f(glGetUniformLocation(decayProgram, "blurAmount"), blurAmount);
+  glDispatchCompute((WIDTH + 15) / 16, (HEIGHT + 15) / 16, 1);  
+  glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);  
+
+  
   std::string vertexShaderSource = loadShaderSource("shaders/quad_vertex_shader.glsl");
   std::string fragmentShaderSource =
       loadShaderSource("shaders/quad_fragment_shader.glsl");
@@ -87,21 +110,20 @@ int main() {
   GLuint shaderProgram = createShaderProgram(vertexShaderSource.c_str(),
                                              fragmentShaderSource.c_str());
 
-  // Set up quad VAO
+  
   GLuint quadVAO = createQuadVAO();
 
-  // Main render loop
+  
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(agentProgram);
-    glDispatchCompute((NUM_AGENTS + 255) / 256, 1, 1);  // Dispatch updated compute shader
+    glDispatchCompute((NUM_AGENTS + 255) / 256, 1, 1);  
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
     glUseProgram(decayProgram);
-    glUniform1f(glGetUniformLocation(decayProgram, "decayAmount"), decayAmount); // Set decay amount
-    glDispatchCompute((WIDTH + 15) / 16, (HEIGHT + 15) / 16, 1);  // Dispatch decay compute shader
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);  // Ensure the texture is decayed
+    glDispatchCompute((WIDTH + 15) / 16, (HEIGHT + 15) / 16, 1);  
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);  
 
 
     glUseProgram(shaderProgram);
@@ -113,7 +135,7 @@ int main() {
     glfwPollEvents();
   }
 
-  // Cleanup
+  
   glDeleteProgram(shaderProgram);
   glDeleteBuffers(1, &agentBuffer);
   glDeleteTextures(1, &outputImage);
@@ -124,7 +146,7 @@ int main() {
   return 0;
 }
 
-// Function to load shader source code from a file
+
 std::string loadShaderSource(const char *filename) {
   std::ifstream file(filename);
   std::stringstream buffer;
@@ -181,14 +203,14 @@ GLuint createImageTexture() {
 
 GLuint createQuadVAO() {
   GLfloat quadVertices[] = {
-      // Position          // TexCoords
-      -1.0f, 1.0f,  0.0f, 0.0f, 1.0f, // Top-left
-      -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, // Bottom-left
-      1.0f,  1.0f,  0.0f, 1.0f, 1.0f, // Top-right
+      
+      -1.0f, 1.0f,  0.0f, 0.0f, 1.0f, 
+      -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 
+      1.0f,  1.0f,  0.0f, 1.0f, 1.0f, 
 
-      1.0f,  1.0f,  0.0f, 1.0f, 1.0f, // Top-right
-      -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, // Bottom-left
-      1.0f,  -1.0f, 0.0f, 1.0f, 0.0f  // Bottom-right
+      1.0f,  1.0f,  0.0f, 1.0f, 1.0f, 
+      -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 
+      1.0f,  -1.0f, 0.0f, 1.0f, 0.0f  
   };
 
   GLuint VAO, VBO;
