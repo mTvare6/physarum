@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include "settings/settings.h"
 
 struct agent {
   glm::vec2 position;
@@ -17,15 +18,6 @@ const int HEIGHT = 1080;
 
 const int NUM_AGENTS = 100000;
 const int RADIUS = 256;
-
-const float decayAmount = 0.011;
-const float blurAmount = 0.5;
-const int senseRadius = 3;
-const float senseOffset = 10.60;
-const float senseAngle = 0.33;
-const float agentSpeed = 1.31;
-const float agentRotateFactor = 14.0;
-const float agentDepositAmount = 0.113;
 
 GLuint createComputeShader(const char *filename);
 GLuint createProgram(GLuint computeShader);
